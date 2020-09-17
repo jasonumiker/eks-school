@@ -4,6 +4,7 @@ from aws_cdk import (
     aws_eks as eks,
     core
 )
+import os
 
 class EKSEnvironmentStack(core.Stack):
 
@@ -58,10 +59,11 @@ class EKSEnvironmentStack(core.Stack):
             endpoint_access=eks.EndpointAccess.PRIVATE,
             version=eks.KubernetesVersion.V1_17
         )
+        self.cluster_cert = eks_cluster.cluster_certificate_authority_data
 
 class CodeServerStack(core.NestedStack):
 
-    def __init__(self, scope: core.Construct, id: str, vpc: ec2.Vpc, role: iam.Role, **kwargs) -> None:
+    def __init__(self, scope: core.Construct, id: str, vpc: ec2.Vpc, role: iam.Role, cluster_cert: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
     
         # Create code-server bastion
@@ -107,15 +109,22 @@ class CodeServerStack(core.NestedStack):
         code_server_instance.user_data.add_commands("echo \"password: $(curl -s http://169.254.169.254/latest/meta-data/instance-id)\" >> ~/.config/code-server/config.yaml")
         code_server_instance.user_data.add_commands("echo \"cert: false\" >> ~/.config/code-server/config.yaml")
         code_server_instance.user_data.add_commands("~/.local/bin/code-server &")
+        code_server_instance.user_data.add_commands("yum -y install jq gettext bash-completion moreutils")
+        code_server_instance.user_data.add_commands("sudo pip install --upgrade awscli && hash -r")
+        code_server_instance.user_data.add_commands("echo 'yq() {docker run --rm -i -v \"${PWD}\":/workdir mikefarah/yq yq \"$@\"}' | tee -a ~/.bashrc && source ~/.bashrc")
+        code_server_instance.user_data.add_commands("echo 'export ALB_INGRESS_VERSION=\"v1.1.8\"' >>  ~/.bash_profile")
         code_server_instance.user_data.add_commands("curl --silent --location -o /usr/local/bin/kubectl \"https://amazon-eks.s3.us-west-2.amazonaws.com/1.17.9/2020-08-04/bin/linux/amd64/kubectl\"")
         code_server_instance.user_data.add_commands("chmod +x /usr/local/bin/kubectl")
         code_server_instance.user_data.add_commands("curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash")
-        code_server_instance.user_data.add_commands("export AWS_DEFAULT_REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '\"region\"[[:space:]]*:[[:space:]]*\"\K[^\"]+')")
-        code_server_instance.user_data.add_commands("echo export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION > ~/.bashrc")
+        code_server_instance.user_data.add_commands("export ACCOUNT_ID=$(aws sts get-caller-identity --output text --query Account)")
+        code_server_instance.user_data.add_commands("export AWS_REGION=$(curl -s 169.254.169.254/latest/dynamic/instance-identity/document | jq -r '.region')")
+        code_server_instance.user_data.add_commands("echo \"export ACCOUNT_ID=${ACCOUNT_ID}\" | tee -a ~/.bash_profile")
+        code_server_instance.user_data.add_commands("echo \"export AWS_REGION=${AWS_REGION}\" | tee -a ~/.bash_profile")
         code_server_instance.user_data.add_commands("aws configure set default.region ${AWS_REGION}")
         code_server_instance.user_data.add_commands("aws eks update-kubeconfig --name cluster")
 
 app = core.App()
-eks_environment_stack = EKSEnvironmentStack(app, "EKSEnvironmentStack")
-code_server_stack = CodeServerStack(eks_environment_stack, "CodeServerStack", eks_environment_stack.eks_vpc, eks_environment_stack.bastion_role)
+env = core.Environment(account=os.environ["CDK_DEFAULT_ACCOUNT"], region=os.environ["CDK_DEFAULT_REGION"])
+eks_environment_stack = EKSEnvironmentStack(app, "EKSEnvironmentStack", env=env)
+code_server_stack = CodeServerStack(eks_environment_stack, "CodeServerStack", eks_environment_stack.eks_vpc, eks_environment_stack.bastion_role, eks_environment_stack.cluster_cert)
 app.synth()
