@@ -59,7 +59,7 @@ class EKSEnvironmentStack(core.Stack):
             version=eks.KubernetesVersion.V1_17
         )
 
-class CodeServerStack(core.Stack):
+class CodeServerStack(core.NestedStack):
 
     def __init__(self, scope: core.Construct, id: str, vpc: ec2.Vpc, role: iam.Role, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
@@ -117,6 +117,5 @@ class CodeServerStack(core.Stack):
 
 app = core.App()
 eks_environment_stack = EKSEnvironmentStack(app, "EKSEnvironmentStack")
-code_server_stack = CodeServerStack(app, "CodeServerStack", eks_environment_stack.eks_vpc, eks_environment_stack.bastion_role)
-code_server_stack.add_dependency(eks_environment_stack)
+code_server_stack = CodeServerStack(eks_environment_stack, "CodeServerStack", eks_environment_stack.eks_vpc, eks_environment_stack.bastion_role)
 app.synth()
