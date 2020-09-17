@@ -111,7 +111,6 @@ class CodeServerStack(core.NestedStack):
         code_server_instance.user_data.add_commands("~/.local/bin/code-server &")
         code_server_instance.user_data.add_commands("yum -y install jq gettext bash-completion moreutils")
         code_server_instance.user_data.add_commands("sudo pip install --upgrade awscli && hash -r")
-        code_server_instance.user_data.add_commands("echo 'yq() {docker run --rm -i -v \"${PWD}\":/workdir mikefarah/yq yq \"$@\"}' | tee -a ~/.bashrc && source ~/.bashrc")
         code_server_instance.user_data.add_commands("echo 'export ALB_INGRESS_VERSION=\"v1.1.8\"' >>  ~/.bash_profile")
         code_server_instance.user_data.add_commands("curl --silent --location -o /usr/local/bin/kubectl \"https://amazon-eks.s3.us-west-2.amazonaws.com/1.17.9/2020-08-04/bin/linux/amd64/kubectl\"")
         code_server_instance.user_data.add_commands("chmod +x /usr/local/bin/kubectl")
