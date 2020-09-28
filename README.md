@@ -22,4 +22,7 @@ And then you're ready go go!
 
 Note that because we are accessing VS Code through a insecure HTTP you need to insert into this by going Shift+Insert instead of Ctrl-V. On the Macbook Insert is Fn+Return so it is Shift+Fn+Return.
 
+## Direct access from your laptop
 Alternatively, the stack has an output with an `aws eks update-kubeconfig` command that inclues a `--role-arn` in it. If you run that on your laptop where the AWS CLI is working with an administrative role then that will set up your ~/.kube/config in a way that kubectl will work that way too (as this EKS is Public and Private).
+
+If you'd like to use the Lens IDE then get it from https://github.com/lensapp/lens/releases and run it from the terminal after you have gotten it to a point where kubectl works.
