@@ -22,7 +22,8 @@ class EKSEnvironmentStack(core.Stack):
         bastion_role = iam.Role(
             self, "BastionRole",
             assumed_by=iam.CompositePrincipal(
-                iam.ServicePrincipal("ec2.amazonaws.com")
+                iam.ServicePrincipal("ec2.amazonaws.com"),
+                iam.AccountRootPrincipal()
             ),
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name("AdministratorAccess")
