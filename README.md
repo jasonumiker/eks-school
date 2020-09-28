@@ -12,6 +12,11 @@ In order to deploy this EKS Enviroment:
 1. The password is the instance id of EKSEnvironmentStack/CodeServerInstance
 1. Open a new Terminal and run the command `aws eks update-kubeconfig --name cluster`
 1. Run a `kubectl get nodes` to confirm everything is working
+1. Create a new file then copy/paste the contents of nyancat.yaml from this project to the bastion
+1. Save under the same name nyancat.yaml
+1. Run `kubectl apply -f nyancat.yaml` to deploy a test workload
+1. Wait a couple minutes then find the ALB address with a `kubectl get ingress -A`
+1. Go to that address for some nyancat fun...
 
 And then you're ready go go!
 
