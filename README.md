@@ -8,3 +8,10 @@ In order to deploy this EKS Enviroment:
 1. Set the environment variable CDK_DEFAULT_ACCOUNT to your account number with a `export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query 'Account' --output text)`
 1. Set the environment variable CDK_DEFAULT_REGION to the region you want with a `export CDK_DEFAULT_REGION=ap-southeast-2`
 1. Run `cdk deploy`
+1. Find the ALB and go to it on http://
+1. The password is the instance id of EKSEnvironmentStack/CodeServerInstance
+1. Open a new Terminal and run the command `aws eks update-kubeconfig --name cluster`
+
+And then you're ready go go!
+
+Note that because we are accessing VS Code through a insecure HTTP you need to insert into this by going Shift+Insert instead of Ctrl-V. On the Macbook Insert is Fn+Return so it is Shift+Fn+Return.
