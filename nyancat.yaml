@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    name: nyancat
+  name: nyancat
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nyancat-deployment
+  namespace: nyancat
+  labels:
+    app: nyancat
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nyancat
+  template:
+    metadata:
+      labels:
+        app: nyancat
+    spec:
+      containers:
+      - name: nyancat
+        image: jasonumiker/nyancat:latest
+        ports:
+        - containerPort: 80
+        resources:
+            requests:
+              memory: "512Mi"
+              cpu: "256m"
+            limits:
+              memory: "512Mi"
+              cpu: "256m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nyancat
+  namespace: nyancat
+spec:
+  selector:
+    app: nyancat
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nyancat
+  namespace: nyancat
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+#    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-southeast-2:505070718513:certificate/cd54d71c-35eb-424f-bbd3-a6efc0310769
+#    external-dns.alpha.kubernetes.io/hostname: nyancat.jasonumiker.com 
+  labels:
+    app: nyancat
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /*
+            backend:
+              serviceName: nyancat
+              servicePort: 80

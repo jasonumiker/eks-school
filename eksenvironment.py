@@ -2,6 +2,7 @@ from aws_cdk import (
     aws_iam as iam,
     aws_ec2 as ec2,
     aws_eks as eks,
+    aws_elasticloadbalancingv2 as elbv2,
     core
 )
 import os
@@ -56,15 +57,188 @@ class EKSEnvironmentStack(core.Stack):
             default_capacity_instance=ec2.InstanceType("m5.large"),
             default_capacity=2,
             security_group=eks_security_group,
-            endpoint_access=eks.EndpointAccess.PRIVATE,
+            endpoint_access=eks.EndpointAccess.PUBLIC_AND_PRIVATE,
             version=eks.KubernetesVersion.V1_17
         )
         self.cluster_cert = eks_cluster.cluster_certificate_authority_data
 
-class CodeServerStack(core.NestedStack):
+        # Deploy ALB Ingress Controller
+        # Create the k8s Service account and corresponding IAM Role mapped via IRSA
+        alb_service_account = eks_cluster.add_service_account(
+            "alb-ingress-controller",
+            name="alb-ingress-controller",
+            namespace="kube-system"
+        )
 
-    def __init__(self, scope: core.Construct, id: str, vpc: ec2.Vpc, role: iam.Role, cluster_cert: str, **kwargs) -> None:
-        super().__init__(scope, id, **kwargs)
+        # Create the PolicyStatements to attach to the role
+        # I couldn't find a way to get this to work with a PolicyDocument and there are 10 of these
+        alb_policy_statement_json_1 = {
+            "Effect": "Allow",
+            "Action": [
+                "acm:DescribeCertificate",
+                "acm:ListCertificates",
+                "acm:GetCertificate"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_2 = {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:CreateSecurityGroup",
+                "ec2:CreateTags",
+                "ec2:DeleteTags",
+                "ec2:DeleteSecurityGroup",
+                "ec2:DescribeAccountAttributes",
+                "ec2:DescribeAddresses",
+                "ec2:DescribeInstances",
+                "ec2:DescribeInstanceStatus",
+                "ec2:DescribeInternetGateways",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeSubnets",
+                "ec2:DescribeTags",
+                "ec2:DescribeVpcs",
+                "ec2:ModifyInstanceAttribute",
+                "ec2:ModifyNetworkInterfaceAttribute",
+                "ec2:RevokeSecurityGroupIngress"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_3 = {
+            "Effect": "Allow",
+            "Action": [
+                "elasticloadbalancing:AddListenerCertificates",
+                "elasticloadbalancing:AddTags",
+                "elasticloadbalancing:CreateListener",
+                "elasticloadbalancing:CreateLoadBalancer",
+                "elasticloadbalancing:CreateRule",
+                "elasticloadbalancing:CreateTargetGroup",
+                "elasticloadbalancing:DeleteListener",
+                "elasticloadbalancing:DeleteLoadBalancer",
+                "elasticloadbalancing:DeleteRule",
+                "elasticloadbalancing:DeleteTargetGroup",
+                "elasticloadbalancing:DeregisterTargets",
+                "elasticloadbalancing:DescribeListenerCertificates",
+                "elasticloadbalancing:DescribeListeners",
+                "elasticloadbalancing:DescribeLoadBalancers",
+                "elasticloadbalancing:DescribeLoadBalancerAttributes",
+                "elasticloadbalancing:DescribeRules",
+                "elasticloadbalancing:DescribeSSLPolicies",
+                "elasticloadbalancing:DescribeTags",
+                "elasticloadbalancing:DescribeTargetGroups",
+                "elasticloadbalancing:DescribeTargetGroupAttributes",
+                "elasticloadbalancing:DescribeTargetHealth",
+                "elasticloadbalancing:ModifyListener",
+                "elasticloadbalancing:ModifyLoadBalancerAttributes",
+                "elasticloadbalancing:ModifyRule",
+                "elasticloadbalancing:ModifyTargetGroup",
+                "elasticloadbalancing:ModifyTargetGroupAttributes",
+                "elasticloadbalancing:RegisterTargets",
+                "elasticloadbalancing:RemoveListenerCertificates",
+                "elasticloadbalancing:RemoveTags",
+                "elasticloadbalancing:SetIpAddressType",
+                "elasticloadbalancing:SetSecurityGroups",
+                "elasticloadbalancing:SetSubnets",
+                "elasticloadbalancing:SetWebAcl"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_4 = {
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateServiceLinkedRole",
+                "iam:GetServerCertificate",
+                "iam:ListServerCertificates"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_5 = {
+            "Effect": "Allow",
+            "Action": [
+                "cognito-idp:DescribeUserPoolClient"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_6 = {
+            "Effect": "Allow",
+            "Action": [
+                "waf-regional:GetWebACLForResource",
+                "waf-regional:GetWebACL",
+                "waf-regional:AssociateWebACL",
+                "waf-regional:DisassociateWebACL"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_7 = {
+            "Effect": "Allow",
+            "Action": [
+                "tag:GetResources",
+                "tag:TagResources"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_8 = {
+            "Effect": "Allow",
+            "Action": [
+                "waf:GetWebACL"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_9 = {
+            "Effect": "Allow",
+            "Action": [
+                "wafv2:GetWebACL",
+                "wafv2:GetWebACLForResource",
+                "wafv2:AssociateWebACL",
+                "wafv2:DisassociateWebACL"
+            ],
+            "Resource": "*"
+        }
+        alb_policy_statement_json_10 = {
+            "Effect": "Allow",
+            "Action": [
+                "shield:DescribeProtection",
+                "shield:GetSubscriptionState",
+                "shield:DeleteProtection",
+                "shield:CreateProtection",
+                "shield:DescribeSubscription",
+                "shield:ListProtections"
+            ],
+            "Resource": "*"
+        }
+        
+        # Attach the necessary permissions
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_1))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_2))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_3))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_4))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_5))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_6))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_7))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_8))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_9))
+        alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_10))
+
+        # Deploy the ALB Ingress Controller from the Helm chart
+        eks_cluster.add_chart(
+            "aws-alb-ingress-controller",
+            chart="aws-alb-ingress-controller",
+            repository="http://storage.googleapis.com/kubernetes-charts-incubator",
+            namespace="kube-system",
+            values={
+                "clusterName": "cluster",
+                "awsRegion": os.environ["CDK_DEFAULT_REGION"],
+                "awsVpcID": eks_vpc.vpc_id,
+                "rbac": {
+                    "create": True,
+                    "serviceAccount": {
+                        "create": False,
+                        "name": "alb-ingress-controller"
+                    }
+                }
+            }
+        )
     
         # Create code-server bastion
         # Get Latest Amazon Linux AMI
@@ -78,7 +252,7 @@ class CodeServerStack(core.NestedStack):
         # Create SecurityGroup for code-server
         security_group = ec2.SecurityGroup(
             self, "SecurityGroup",
-            vpc=vpc,
+            vpc=eks_vpc,
             allow_all_outbound=True
         )
         
@@ -92,8 +266,8 @@ class CodeServerStack(core.NestedStack):
             self, "CodeServerInstance",
             instance_type=ec2.InstanceType("t3.large"),
             machine_image=amzn_linux,
-            role=role,
-            vpc=vpc,
+            role=bastion_role,
+            vpc=eks_vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             security_group=security_group,
             block_devices=[ec2.BlockDevice(device_name="/dev/xvda", volume=ec2.BlockDeviceVolume.ebs(20))]
@@ -120,10 +294,29 @@ class CodeServerStack(core.NestedStack):
         code_server_instance.user_data.add_commands("echo \"export ACCOUNT_ID=${ACCOUNT_ID}\" | tee -a ~/.bash_profile")
         code_server_instance.user_data.add_commands("echo \"export AWS_REGION=${AWS_REGION}\" | tee -a ~/.bash_profile")
         code_server_instance.user_data.add_commands("aws configure set default.region ${AWS_REGION}")
+        code_server_instance.user_data.add_commands("curl --silent --location https://rpm.nodesource.com/setup_12.x | bash -")
+        code_server_instance.user_data.add_commands("yum -y install nodejs")
+        code_server_instance.user_data.add_commands("amazon-linux-extras enable python3")
+        code_server_instance.user_data.add_commands("yum install -y python3 --disablerepo amzn2-core")
+        code_server_instance.user_data.add_commands("rm /usr/bin/python && ln -s /usr/bin/python3 /usr/bin/python && ln -s /usr/bin/pip3 /usr/bin/pip")
+        code_server_instance.user_data.add_commands("npm install -g aws-cdk")
         code_server_instance.user_data.add_commands("aws eks update-kubeconfig --name cluster")
+
+        # Add ALB
+        lb = elbv2.ApplicationLoadBalancer(
+            self, "LB",
+            vpc=eks_vpc,
+            internet_facing=True
+        )
+        listener = lb.add_listener("Listener", port=80)
+        listener.connections.allow_default_port_from_any_ipv4("Open to the Internet")
+        listener.connections.allow_to_any_ipv4(port_range=ec2.Port(string_representation="TCP 8080", protocol=ec2.Protocol.TCP, from_port=8080, to_port=8080))
+        listener.add_targets("Target", port=8080, targets=[elbv2.InstanceTarget(
+            instance_id=code_server_instance.instance_id,
+            port=8080
+        )])
 
 app = core.App()
 env = core.Environment(account=os.environ["CDK_DEFAULT_ACCOUNT"], region=os.environ["CDK_DEFAULT_REGION"])
 eks_environment_stack = EKSEnvironmentStack(app, "EKSEnvironmentStack", env=env)
-code_server_stack = CodeServerStack(eks_environment_stack, "CodeServerStack", eks_environment_stack.eks_vpc, eks_environment_stack.bastion_role, eks_environment_stack.cluster_cert)
 app.synth()
