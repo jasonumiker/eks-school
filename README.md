@@ -9,6 +9,7 @@ In order to deploy this EKS Enviroment:
 1. Set the environment variable CDK_DEFAULT_ACCOUNT to your account number with a `export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query 'Account' --output text)`
 1. Set the environment variable CDK_DEFAULT_REGION to the region you want with a `export CDK_DEFAULT_REGION=ap-southeast-2`
 1. Paste in the environment variables for temporary admin role access to an account from Isengard
+1. Run `cdk init`
 1. Run `cdk deploy`
 1. Find the ALB address and go to it on http://
 1. The password is the instance id of EKSEnvironmentStack/CodeServerInstance (find in the EC2 console)
