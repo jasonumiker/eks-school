@@ -222,7 +222,7 @@ class EKSEnvironmentStack(core.Stack):
         alb_service_account.add_to_policy(iam.PolicyStatement.from_json(alb_policy_statement_json_10))
 
         # Deploy the ALB Ingress Controller from the Helm chart
-        eks_cluster.add_chart(
+        eks_cluster.add_helm_chart(
             "aws-alb-ingress-controller",
             chart="aws-alb-ingress-controller",
             repository="http://storage.googleapis.com/kubernetes-charts-incubator",
