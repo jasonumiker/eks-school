@@ -1,8 +1,12 @@
+from os import environ
 from aws_cdk import (
     aws_iam as iam,
     aws_ec2 as ec2,
     aws_eks as eks,
     aws_elasticloadbalancingv2 as elbv2,
+    aws_route53 as route53,
+    aws_route53_targets as route53_targets,
+    aws_certificatemanager as acm,
     core
 )
 import os
@@ -318,6 +322,31 @@ class EKSEnvironmentStack(core.Stack):
             instance_id=code_server_instance.instance_id,
             port=8080
         )])
+
+        # If a Hosted Zone exists, setup HTTPS for coderserver.domainname.xyz
+        if "CDK_HOSTEDZONEID" in os.environ and "CDK_HOSTEDZONENAME" in os.environ:
+            hostedzone = route53.HostedZone.from_hosted_zone_attributes(self, "dnszone",
+                hosted_zone_id=os.environ["CDK_HOSTEDZONEID"], 
+                zone_name=os.environ["CDK_HOSTEDZONENAME"])
+            arecord=route53.ARecord(self, 'CodeServer AliasRecord', 
+                zone=hostedzone, 
+                target=route53.RecordTarget.from_alias(route53_targets.LoadBalancerTarget(lb)),
+                record_name="codeserver")
+
+            cert = acm.DnsValidatedCertificate(self, "codeserver cert",
+                domain_name="codeserver."+hostedzone.zone_name,
+                hosted_zone=hostedzone)
+            listenerHttps = lb.add_listener("HTTPS Listener", port=443)
+            listenerHttps.connections.allow_default_port_from_any_ipv4("Open to the Internet")
+            listenerHttps.connections.allow_to_any_ipv4(port_range=ec2.Port(
+                string_representation="TCP 8080", protocol=ec2.Protocol.TCP, from_port=8080, to_port=8080))
+            listenerHttps.add_certificates("LB Certificates", [ cert ])
+            listenerHttps.add_targets("Target", port=8080, targets=[elbv2.InstanceTarget(
+            instance_id=code_server_instance.instance_id,
+            port=8080
+        )])
+
+
 
 app = core.App()
 env = core.Environment(account=os.environ["CDK_DEFAULT_ACCOUNT"], region=os.environ["CDK_DEFAULT_REGION"])
