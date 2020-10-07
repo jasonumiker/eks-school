@@ -1,5 +1,8 @@
 aws-cdk.core
+aws-cdk.aws_certificatemanager
 aws-cdk.aws_iam
 aws-cdk.aws_ec2
 aws-cdk.aws_eks
 aws-cdk.aws_elasticloadbalancingv2
+aws-cdk.aws_route53
+aws-cdk.aws_route53_targets
